@@ -13,6 +13,7 @@ import torch.autograd
 from torch.nn import Dropout, Module
 from torch.nn.init import normal_
 
+from ..attention_registry import AttentionRegistry, Optional, Float, Int, Bool
 from ..masking import FullMask
 from ..aggregate import aggregate, broadcast
 from ..clustering.hamming import cluster
@@ -79,17 +80,18 @@ class ClusteredAttention(Module):
         softmax_temp: The temperature to use for the softmax attention.
                       (default: 1/sqrt(d_keys) where d_keys is computed at
                       runtime)
-        dropout_rate: The dropout rate to apply to the attention (default: 0.1)
+        attention_dropout: The dropout rate to apply to the attention
+                           (default: 0.1)
     """
     def __init__(self, clusters, iterations=10, bits=32,
-                 hash_bias=True, softmax_temp=None, dropout_rate=0.1):
+                 hash_bias=True, softmax_temp=None, attention_dropout=0.1):
         super(ClusteredAttention, self).__init__()
         self.clusters = clusters
         self.iterations = iterations
         self.bits = bits
         self.hash_bias = hash_bias
         self.softmax_temp = softmax_temp
-        self.dropout = Dropout(dropout_rate)
+        self.dropout = Dropout(attention_dropout)
 
     def _create_query_groups(self, Q, query_lengths):
         N, H, L, E = Q.shape
@@ -149,3 +151,18 @@ class ClusteredAttention(Module):
 
         # Broadcast grouped attention
         return self._broadcast_values(V, groups)
+
+
+# Register the attention implementation so that it becomes available in our
+# builders
+AttentionRegistry.register(
+    "clustered", ClusteredAttention,
+    [
+        ("clusters", Int),
+        ("iterations", Optional(Int, 10)),
+        ("bits", Optional(Int, 32)),
+        ("hash_bias", Optional(Bool, True)),
+        ("softmax_temp", Optional(Float)),
+        ("attention_dropout", Optional(Float, 0.1))
+    ]
+)

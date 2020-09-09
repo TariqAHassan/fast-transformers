@@ -13,6 +13,7 @@ import torch.autograd
 from torch.nn import Dropout, Module
 from torch.nn.init import normal_
 
+from ..attention_registry import AttentionRegistry, Optional, Float, Int, Bool
 from ..masking import FullMask
 from ..aggregate import aggregate, broadcast
 from ..clustering.hamming import cluster
@@ -83,10 +84,11 @@ class ImprovedClusteredAttention(Module):
         softmax_temp: The temperature to use for the softmax attention.
                       (default: 1/sqrt(d_keys) where d_keys is computed at
                       runtime)
-        dropout_rate: The dropout rate to apply to the attention (default: 0.1)
+        attention_dropout: The dropout rate to apply to the attention
+                           (default: 0.1)
     """
     def __init__(self, clusters, iterations=10, bits=32,
-                 hash_bias=True, topk=32, softmax_temp=None, dropout_rate=0.1):
+                 hash_bias=True, topk=32, softmax_temp=None, attention_dropout=0.1):
         super(ImprovedClusteredAttention, self).__init__()
         self.clusters = clusters
         self.iterations = iterations
@@ -94,7 +96,7 @@ class ImprovedClusteredAttention(Module):
         self.hash_bias = hash_bias
         self.topk = topk
         self.softmax_temp = softmax_temp
-        self.dropout = Dropout(dropout_rate)
+        self.dropout = Dropout(attention_dropout)
 
     def _create_query_groups(self, Q, query_lengths):
         N, H, L, E = Q.shape
@@ -221,3 +223,19 @@ class ImprovedClusteredAttention(Module):
         V_new = V_topk + V_bottomk
 
         return V_new.permute(0, 2, 1, 3).contiguous()
+
+
+# Register the attention implementation so that it becomes available in our
+# builders
+AttentionRegistry.register(
+    "improved-clustered", ImprovedClusteredAttention,
+    [
+        ("clusters", Int),
+        ("iterations", Optional(Int, 10)),
+        ("bits", Optional(Int, 32)),
+        ("hash_bias", Optional(Bool, True)),
+        ("topk", Optional(Int, 32)),
+        ("softmax_temp", Optional(Float)),
+        ("attention_dropout", Optional(Float, 0.1))
+    ]
+)

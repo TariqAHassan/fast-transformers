@@ -13,6 +13,7 @@ import torch
 from torch.nn import Dropout, Module
 from torch.nn.init import normal_
 
+from ..attention_registry import AttentionRegistry, Optional, Int, Float, Bool
 from ..masking import FullMask
 
 
@@ -29,11 +30,12 @@ class ReformerAttention(Module):
         softmax_temp: The temperature to use for the softmax attention.
                       (default: 1/sqrt(d_keys) where d_keys is computed at
                       runtime)
-        dropout_rate: The dropout rate to apply to the attention (default: 0.1)
+        attention_dropout: The dropout rate to apply to the attention
+                           (default: 0.1)
     """
 
     def __init__(self, chunk_size=32, bits=8, rounds=4, masked=False,
-                 softmax_temp=None, dropout_rate=0.1):
+                 softmax_temp=None, attention_dropout=0.1):
         super(ReformerAttention, self).__init__()
 
         self.chunk_size = chunk_size
@@ -41,7 +43,7 @@ class ReformerAttention(Module):
         self.rounds = rounds
         self.masked = masked
         self.softmax_temp = softmax_temp
-        self.dropout = Dropout(dropout_rate)
+        self.dropout = Dropout(attention_dropout)
 
     def _normalize(self, x):
         norms = torch.sqrt(torch.einsum("nlhe,nlhe->nlh", x, x))
@@ -139,3 +141,18 @@ class ReformerAttention(Module):
                     factor * self._reformer_round(queries, K, values, mask, softmax_temp)
 
         return V_new
+
+
+# Register the attention implementation so that it becomes available in our
+# builders
+AttentionRegistry.register(
+    "reformer", ReformerAttention,
+    [
+        ("chunk_size", Optional(Int, 32)),
+        ("bits", Optional(Int, 32)),
+        ("rounds", Optional(Int, 4)),
+        ("masked", Optional(Bool, False)),
+        ("softmax_temp", Optional(Float)),
+        ("attention_dropout", Optional(Float, 0.1))
+    ]
+)

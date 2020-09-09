@@ -6,6 +6,7 @@
 
 
 #include <array>
+#include <random>
 
 #include <torch/extension.h>
 
@@ -17,6 +18,27 @@
 #else
     #error "Popcnt not implemented"
 #endif
+
+
+/**
+ * PyTorch <1.6.0 and >=1.6.0 are incompatible with respect to random number
+ * generation. Thus we roll our own.
+ */
+struct ThreadSafePRNG {
+    ThreadSafePRNG(uint64_t start, uint64_t end) :
+        gen(std::random_device()()), dis(start, end) {}
+
+    uint64_t random() {
+        std::lock_guard<std::mutex> lock(mutex);
+
+        return dis(gen);
+    }
+
+    private:
+        std::mt19937 gen;
+        std::uniform_int_distribution<uint64_t> dis;
+        std::mutex mutex;
+};
 
 
 /**
@@ -88,6 +110,8 @@ void recompute_centroids(
     auto length_a = lengths.accessor<int32_t, 1>();
     auto centroid_a = centroids.accessor<int64_t, 3>();
 
+    ThreadSafePRNG prng(0, (1UL<<bits)-1UL);  // see the class comment on why
+
     #pragma omp parallel for
     for (int n=0; n<N; n++) {
         // The counts variable is keeping track of how many 1s and 0s we have in
@@ -133,7 +157,7 @@ void recompute_centroids(
                     }
                     centroid_a[n][h][k] = c;
                 } else {
-                    int64_t c = at::detail::getDefaultCPUGenerator()->random();
+                    int64_t c = prng.random();
                     centroid_a[n][h][k] = c & ((1L<<bits)-1);
                 }
             }

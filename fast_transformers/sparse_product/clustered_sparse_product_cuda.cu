@@ -9,11 +9,11 @@
 
 using namespace cooperative_groups;
 
-typedef torch::PackedTensorAccessor<float, 4, torch::RestrictPtrTraits> float_accessor_4d;
-typedef torch::PackedTensorAccessor<int64_t, 4, torch::RestrictPtrTraits> int64_accessor_4d;
-typedef torch::PackedTensorAccessor<int64_t, 3, torch::RestrictPtrTraits> int64_accessor_3d;
-typedef torch::PackedTensorAccessor<int, 4, torch::RestrictPtrTraits> int32_accessor_4d;
-typedef torch::PackedTensorAccessor<int, 3, torch::RestrictPtrTraits> int32_accessor_3d;
+typedef torch::PackedTensorAccessor32<float, 4, torch::RestrictPtrTraits> float_accessor_4d;
+typedef torch::PackedTensorAccessor32<int64_t, 4, torch::RestrictPtrTraits> int64_accessor_4d;
+typedef torch::PackedTensorAccessor32<int64_t, 3, torch::RestrictPtrTraits> int64_accessor_3d;
+typedef torch::PackedTensorAccessor32<int, 4, torch::RestrictPtrTraits> int32_accessor_4d;
+typedef torch::PackedTensorAccessor32<int, 3, torch::RestrictPtrTraits> int32_accessor_3d;
 
 
 
@@ -197,15 +197,15 @@ void clustered_sparse_dot_product(
     int C = topk.size(2);
     int S = K.size(2);
 
-    float* queries_p = Q.data<float>();
-    float* keys_p = K.data<float>();
-    int64_t* topk_p = topk.data<int64_t>();
-    int* lengths_p = lengths.data<int>();
-    float* product_p = product.data<float>();
-    int* block_map_p = block_map.data<int>();
-    int* query_map_p = query_map.data<int>();
-    int* cluster_counts_p = cluster_counts.data<int>();
-    int64_t* sorted_group_indices_p = sorted_group_indices.data<int64_t>();
+    float* queries_p = Q.data_ptr<float>();
+    float* keys_p = K.data_ptr<float>();
+    int64_t* topk_p = topk.data_ptr<int64_t>();
+    int* lengths_p = lengths.data_ptr<int>();
+    float* product_p = product.data_ptr<float>();
+    int* block_map_p = block_map.data_ptr<int>();
+    int* query_map_p = query_map.data_ptr<int>();
+    int* cluster_counts_p = cluster_counts.data_ptr<int>();
+    int64_t* sorted_group_indices_p = sorted_group_indices.data_ptr<int64_t>();
 
     int max_threads = 1024;
     int queries_per_block = (max_threads / k) < L ? (max_threads / k):L;
@@ -307,13 +307,13 @@ void clustered_sparse_dot_backward(
     int blocks = (N*H*L*k + threads - 1) / threads;
     
     clustered_sparse_dot_backward_kernel<<<blocks, threads>>>(
-        Q.packed_accessor<float, 4, torch::RestrictPtrTraits>(),
-        K.packed_accessor<float, 4, torch::RestrictPtrTraits>(),
-        groups.packed_accessor<int, 3, torch::RestrictPtrTraits>(),
-        topk.packed_accessor<int64_t, 4, torch::RestrictPtrTraits>(),
-        grad_out.packed_accessor<float, 4, torch::RestrictPtrTraits>(),
-        grad_Q.packed_accessor<float, 4, torch::RestrictPtrTraits>(),
-        grad_K.packed_accessor<float, 4, torch::RestrictPtrTraits>()
+        Q.packed_accessor32<float, 4, torch::RestrictPtrTraits>(),
+        K.packed_accessor32<float, 4, torch::RestrictPtrTraits>(),
+        groups.packed_accessor32<int, 3, torch::RestrictPtrTraits>(),
+        topk.packed_accessor32<int64_t, 4, torch::RestrictPtrTraits>(),
+        grad_out.packed_accessor32<float, 4, torch::RestrictPtrTraits>(),
+        grad_Q.packed_accessor32<float, 4, torch::RestrictPtrTraits>(),
+        grad_K.packed_accessor32<float, 4, torch::RestrictPtrTraits>()
     );
 }
 
@@ -391,12 +391,12 @@ void clustered_sparse_weighted_average(
     int E = values.size(3);
 
     
-    auto weights_a = weights.packed_accessor<float, 4, torch::RestrictPtrTraits>();
-    auto values_a = values.packed_accessor<float, 4, torch::RestrictPtrTraits>();
-    auto groups_a = groups.packed_accessor<int, 3, torch::RestrictPtrTraits>();
-    auto topk_a = topk.packed_accessor<int64_t, 4, torch::RestrictPtrTraits>();
-    auto output_a = output.packed_accessor<float, 4, torch::RestrictPtrTraits>();
-    //float* output_p = output.data<float>();
+    auto weights_a = weights.packed_accessor32<float, 4, torch::RestrictPtrTraits>();
+    auto values_a = values.packed_accessor32<float, 4, torch::RestrictPtrTraits>();
+    auto groups_a = groups.packed_accessor32<int, 3, torch::RestrictPtrTraits>();
+    auto topk_a = topk.packed_accessor32<int64_t, 4, torch::RestrictPtrTraits>();
+    auto output_a = output.packed_accessor32<float, 4, torch::RestrictPtrTraits>();
+    //float* output_p = output.data_ptr<float>();
 
     int max_threads = 1024;
     int n_dim_per_thread = E;
@@ -479,13 +479,13 @@ void clustered_sparse_weighted_average_backward(
     int k = weights.size(3);
     int E = values.size(3);
 
-    auto weights_a = weights.packed_accessor<float, 4, torch::RestrictPtrTraits>();
-    auto values_a = values.packed_accessor<float, 4, torch::RestrictPtrTraits>();
-    auto groups_a = groups.packed_accessor<int, 3, torch::RestrictPtrTraits>();
-    auto topk_a = topk.packed_accessor<int64_t, 4, torch::RestrictPtrTraits>();
-    auto grad_out_a = grad_out.packed_accessor<float, 4, torch::RestrictPtrTraits>();
-    auto grad_weights_a = grad_weights.packed_accessor<float, 4, torch::RestrictPtrTraits>();
-    auto grad_values_a = grad_values.packed_accessor<float, 4, torch::RestrictPtrTraits>();
+    auto weights_a = weights.packed_accessor32<float, 4, torch::RestrictPtrTraits>();
+    auto values_a = values.packed_accessor32<float, 4, torch::RestrictPtrTraits>();
+    auto groups_a = groups.packed_accessor32<int, 3, torch::RestrictPtrTraits>();
+    auto topk_a = topk.packed_accessor32<int64_t, 4, torch::RestrictPtrTraits>();
+    auto grad_out_a = grad_out.packed_accessor32<float, 4, torch::RestrictPtrTraits>();
+    auto grad_weights_a = grad_weights.packed_accessor32<float, 4, torch::RestrictPtrTraits>();
+    auto grad_values_a = grad_values.packed_accessor32<float, 4, torch::RestrictPtrTraits>();
     int threads_x = 256;
     int threads_y = 4;
     int dim_per_thread = E / threads_y;

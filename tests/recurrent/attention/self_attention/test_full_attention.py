@@ -11,12 +11,12 @@ import unittest
 
 import torch
 
-from fast_transformers.attention import CausalLinearAttention
+from fast_transformers.attention import FullAttention
 from fast_transformers.masking import TriangularCausalMask, LengthMask
-from fast_transformers.recurrent.attention import RecurrentLinearAttention
+from fast_transformers.recurrent.attention import RecurrentFullAttention
 
 
-class TestRecurrentLinearAttention(unittest.TestCase):
+class TestRecurrentFullAttention(unittest.TestCase):
     def test_forward(self):
         # Prepare the inputs
         N = 10
@@ -28,28 +28,28 @@ class TestRecurrentLinearAttention(unittest.TestCase):
         k = torch.rand(N, H, E)
         v = torch.rand(N, H, M)
         memory = [
-            torch.rand(N, H, E, M),
-            torch.rand(N, H, E)
+            torch.rand(N, H, L, E),
+            torch.rand(N, H, L, M)
         ]
 
         # Test the attention module
-        att = RecurrentLinearAttention()
+        att = RecurrentFullAttention(softmax_temp=1)
         v_new, mem_new = att(q, k, v)
         self.assertEqual(v_new.shape, (N, H, M))
         self.assertEqual(len(mem_new), 2)
-        self.assertEqual(mem_new[0].shape, (N, H, E, M))
-        self.assertEqual(mem_new[1].shape, (N, H, E))
+        self.assertEqual(mem_new[0].shape, (N, H, 1, E))
+        self.assertEqual(mem_new[1].shape, (N, H, 1, M))
         v_new, mem_new = att(q, k, v, mem_new)
         self.assertEqual(v_new.shape, (N, H, M))
         self.assertEqual(len(mem_new), 2)
-        self.assertEqual(mem_new[0].shape, (N, H, E, M))
-        self.assertEqual(mem_new[1].shape, (N, H, E))
+        self.assertEqual(mem_new[0].shape, (N, H, 2, E))
+        self.assertEqual(mem_new[1].shape, (N, H, 2, M))
 
         v_new, mem_new = att(q, k, v, memory)
         self.assertEqual(v_new.shape, (N, H, M))
         self.assertEqual(len(mem_new), 2)
-        self.assertEqual(mem_new[0].shape, (N, H, E, M))
-        self.assertEqual(mem_new[1].shape, (N, H, E))
+        self.assertEqual(mem_new[0].shape, (N, H, L+1, E))
+        self.assertEqual(mem_new[1].shape, (N, H, L+1, M))
 
     def test_correctness(self):
         # Prepare the inputs
@@ -62,10 +62,10 @@ class TestRecurrentLinearAttention(unittest.TestCase):
         k = torch.rand(N, L, H, E)
         v = torch.rand(N, L, H, M)
         m1 = TriangularCausalMask(L)
-        m2 = LengthMask(torch.full((N,), L))
-        m3 = LengthMask(torch.full((N,), L))
-        att = CausalLinearAttention()
-        rec_att = RecurrentLinearAttention()
+        m2 = LengthMask(torch.full((N,), L, dtype=torch.int64))
+        m3 = LengthMask(torch.full((N,), L, dtype=torch.int64))
+        att = FullAttention()
+        rec_att = RecurrentFullAttention()
         att.eval()
         rec_att.eval()
 
@@ -90,7 +90,7 @@ class TestRecurrentLinearAttention(unittest.TestCase):
         k = torch.rand(N, H, E)
         v = torch.rand(N, H, M)
         memory = None
-        att = RecurrentLinearAttention()
+        att = RecurrentFullAttention(softmax_temp=1)
 
         start = time.time()
         for i in range(100):
@@ -111,7 +111,7 @@ class TestRecurrentLinearAttention(unittest.TestCase):
         k = torch.rand(N, H, E).cuda()
         v = torch.rand(N, H, M).cuda()
         memory = None
-        att = RecurrentLinearAttention()
+        att = RecurrentFullAttention(softmax_temp=1)
 
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
@@ -125,4 +125,3 @@ class TestRecurrentLinearAttention(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
